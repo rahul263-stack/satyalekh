@@ -5,12 +5,52 @@
 
   $('.theme')?.addEventListener('click', () => { const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; r.dataset.theme = dark ? 'light' : 'dark'; try { localStorage.setItem('theme', r.dataset.theme); } catch (e) {} });
 
+  const head = $('header.top'), sc = () => head.classList.toggle('scrolled', scrollY > 60);
+  addEventListener('scroll', sc, { passive: true }); sc();
+
+  // Rule playground: allowed cut = billed above the agreed rate; anything more is over-deducted
+  const play = $('#play');
+  if (play) {
+    const inr = n => '₹' + n.toLocaleString('en-IN'), el = id => document.getElementById(id); let say;
+    const calc = () => {
+      const bill = +el('k-b').value, rate = +el('k-a').value, cut = Math.min(+el('k-c').value, bill), file = el('k-f').checked;
+      const allow = Math.max(0, bill - rate), over = Math.max(0, cut - allow), v = !file && cut ? 'w' : over ? 'g' : 'a';
+      el('o-b').textContent = inr(bill); el('o-a').textContent = inr(rate); el('o-c').textContent = inr(cut);
+      $('.verdict').dataset.v = v;
+      el('v-l').textContent = { g: 'Over-deducted', a: cut ? 'Within terms' : 'Nothing was cut', w: 'Needs a person' }[v];
+      el('v-n').textContent = inr(v === 'g' ? over : cut);
+      el('v-w').textContent = v === 'w' ? 'There is no agreed rate to test this against. The software does not guess.' : !cut ? 'There is no deduction to check.' : allow ? `The bill is ${inr(allow)} above the agreed rate. The payer cut ${inr(cut)}.` : `The bill is within the agreed rate, so no cut was allowed. The payer cut ${inr(cut)}.`;
+      el('v-o').style.width = (v === 'g' ? over / cut * 100 : 0) + '%'; el('v-a').style.width = (v === 'g' ? (cut - over) / cut * 100 : cut ? 100 : 0) + '%';
+      clearTimeout(say); say = setTimeout(() => el('v-s').textContent = el('v-l').textContent + ' ' + el('v-n').textContent, 600);
+    };
+    play.addEventListener('input', calc); play.addEventListener('submit', e => e.preventDefault()); calc();
+  }
+
   // Settlement letter: one finding open at a time
   $$('.line').forEach(b => b.addEventListener('click', () => {
     const open = b.getAttribute('aria-expanded') === 'true';
     $$('.line').forEach(x => { x.setAttribute('aria-expanded', 'false'); $('#' + x.getAttribute('aria-controls')).hidden = true; });
     if (!open) { b.setAttribute('aria-expanded', 'true'); $('#' + b.getAttribute('aria-controls')).hidden = false; }
   }));
+
+  // Replays the check: a light passes down the letter, then each verdict and the total land. The finished letter is the resting state.
+  const L = $('.home .letter');
+  if (L) {
+    const calm = matchMedia('(prefers-reduced-motion: reduce)').matches, btn = $('.replay'); let timer = 0;
+    if (calm) btn.hidden = true;
+    const run = () => {
+      $('.scan', L)?.remove(); cancelAnimationFrame(timer);
+      const lines = $$('.line', L), end = $('.split', L).offsetTop + 20, T = 2600;
+      const bar = document.createElement('i'); bar.className = 'scan'; L.append(bar);
+      bar.animate([{ top: 0 }, { top: end + 'px' }], { duration: T, easing: 'linear', fill: 'forwards' }).onfinish = () => bar.remove();
+      lines.forEach(l => $('.tag', l).animate([{ opacity: 0, transform: 'scale(1.5) rotate(-5deg)' }, { opacity: 1, transform: 'none' }], { duration: 260, delay: T * (l.offsetTop + l.offsetHeight / 2) / end, easing: 'cubic-bezier(.2,.9,.3,1.2)', fill: 'backwards' }));
+      $$('.split i', L).forEach((x, i) => { x.style.transformOrigin = 'left'; x.animate([{ transform: 'scaleX(0)' }, { transform: 'none' }], { duration: 420, delay: T + i * 160, easing: 'ease-out', fill: 'backwards' }); });
+      const dd = $('.win dd', L), t0 = performance.now() + T;
+      const tick = t => { const k = Math.max(0, Math.min(1, (t - t0) / 900)); dd.textContent = '₹' + (Math.round(29000 * (1 - (1 - k) ** 3) / 100) * 100).toLocaleString('en-IN'); if (k < 1) timer = requestAnimationFrame(tick); };
+      timer = requestAnimationFrame(tick);
+    };
+    btn.addEventListener('click', run); if (!calm) (document.fonts?.ready || Promise.resolve()).then(run);
+  }
 
   // Tabs (process stepper)
   $$('[role=tablist]').forEach(list => {
